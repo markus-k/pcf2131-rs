@@ -1,6 +1,7 @@
 #![no_std]
 
 use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
+pub use rtcc::DateTimeAccess;
 
 pub trait RegisterAccess {
     type Error;
@@ -118,7 +119,7 @@ impl ClockoutFrequency {
     }
 }
 
-impl<I> rtcc::DateTimeAccess for Pcf2131<I>
+impl<I> DateTimeAccess for Pcf2131<I>
 where
     I: RegisterAccess,
 {
