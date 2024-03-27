@@ -2,7 +2,7 @@
 
 use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
 
-pub trait Interface {
+pub trait RegisterAccess {
     type Error;
 
     fn write_register(&mut self, register: u8, value: u8) -> Result<(), Self::Error>;
@@ -19,7 +19,7 @@ pub struct I2CInterface<I2C> {
     address: u8,
 }
 
-impl<I2C> Interface for I2CInterface<I2C>
+impl<I2C> RegisterAccess for I2CInterface<I2C>
 where
     I2C: embedded_hal::i2c::I2c,
 {
@@ -57,7 +57,7 @@ pub struct Pcf2131<I> {
 
 impl<I> Pcf2131<I>
 where
-    I: Interface,
+    I: RegisterAccess,
 {
     pub fn new(interface: I) -> Self {
         Self { interface }
@@ -120,7 +120,7 @@ impl ClockoutFrequency {
 
 impl<I> rtcc::DateTimeAccess for Pcf2131<I>
 where
-    I: Interface,
+    I: RegisterAccess,
 {
     type Error = I::Error;
 
