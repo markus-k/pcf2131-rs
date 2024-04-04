@@ -233,7 +233,10 @@ impl Registers {
     pub const AGING_OFFSET: u8 = 0x30;
 }
 
+#[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_bcd() {
         assert_eq!(9u8.to_bcd(), 0x9);
