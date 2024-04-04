@@ -11,7 +11,7 @@ mod types;
 
 use crate::registers::Registers;
 
-pub use types::{ClockoutFrequency, PowerManagement};
+pub use types::{AgingOffset, ClockoutFrequency, PowerManagement, TemperaturePeriod};
 
 /// Default I2C address of the PCF2131
 pub const DEFAULT_I2C_ADDRESS: u8 = 0x53;
@@ -162,6 +162,29 @@ where
         while (clockout & (1 << 5)) == 0 {
             clockout = self.interface.read_register(Registers::CLOCKOUT_CTL)?;
         }
+
+        Ok(())
+    }
+
+    /// Sets the aging offset at 25°C
+    pub fn set_aging_offset(&mut self, aging_offset: AgingOffset) -> Result<(), I::Error> {
+        self.interface
+            .write_register(Registers::AGING_OFFSET, aging_offset.to_regavl())?;
+
+        Ok(())
+    }
+
+    /// Sets the temperature measurement period for compensating temperature-dependant
+    /// drift in the crystal oscillator.
+    pub fn set_temperature_measurement_period(
+        &mut self,
+        period: TemperaturePeriod,
+    ) -> Result<(), I::Error> {
+        let mut clkcout_ctl = self.interface.read_register(Registers::CLOCKOUT_CTL)?;
+        clkcout_ctl &= !0b11000000;
+        clkcout_ctl |= period.to_regval() << 6;
+        self.interface
+            .write_register(Registers::CLOCKOUT_CTL, clkcout_ctl)?;
 
         Ok(())
     }

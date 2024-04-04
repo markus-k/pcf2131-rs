@@ -1,3 +1,30 @@
+/// Aging offset
+#[derive(Debug, Clone, Copy)]
+pub enum AgingOffset {
+    Plus16ppm = 0,
+    Plus14ppm = 1,
+    Plus12ppm = 2,
+    Plus10ppm = 3,
+    Plus8ppm = 4,
+    Plus6ppm = 5,
+    Plus4ppm = 6,
+    Plus2ppm = 7,
+    ZeroPpm = 8,
+    Minus2ppm = 9,
+    Minus4ppm = 10,
+    Minus6ppm = 11,
+    Minus8ppm = 12,
+    Minus10ppm = 13,
+    Minus12ppm = 14,
+    Minus14ppm = 15,
+}
+
+impl AgingOffset {
+    pub(crate) fn to_regavl(self) -> u8 {
+        self as u8
+    }
+}
+
 /// CLKOUT frequency selection
 #[derive(Debug, Clone, Copy)]
 pub enum ClockoutFrequency {
@@ -71,5 +98,19 @@ impl PowerManagement {
             PowerManagement::DirectModeBatteryLowDisabled => 0b100, // and 0b101
             PowerManagement::Disabled => 0b110,                     // and 0b111
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum TemperaturePeriod {
+    Every32Mintues = 0,
+    Every16Minutes = 1,
+    Every8Minutes = 2,
+    Every4Minutes = 3,
+}
+
+impl TemperaturePeriod {
+    pub(crate) fn to_regval(self) -> u8 {
+        self as u8
     }
 }
