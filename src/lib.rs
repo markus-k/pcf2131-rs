@@ -2,8 +2,21 @@
 
 use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
 use embedded_hal::i2c::I2c;
+
+// re-export `DateTImeAccess` so crates don't have to depend on `rtcc`
 pub use rtcc::DateTimeAccess;
 
+mod registers;
+mod types;
+
+use crate::registers::Registers;
+
+pub use types::{ClockoutFrequency, PowerManagement};
+
+/// Default I2C address of the PCF2131
+pub const DEFAULT_I2C_ADDRESS: u8 = 0x53;
+
+/// Trait that provides access to register values of the RTC
 pub trait RegisterAccess {
     type Error;
 
@@ -48,6 +61,7 @@ where
     }
 }
 
+/// PCF2131 driver
 pub struct Pcf2131<I> {
     interface: I,
 }
@@ -57,7 +71,7 @@ where
     I2C: I2c,
 {
     pub fn new_i2c(i2c: I2C) -> Self {
-        Self::new_i2c_addr(i2c, 0x53)
+        Self::new_i2c_addr(i2c, DEFAULT_I2C_ADDRESS)
     }
 
     pub fn new_i2c_addr(mut i2c: I2C, address: u8) -> Self {
@@ -82,6 +96,7 @@ where
         Self { interface }
     }
 
+    /// Set frequency of the CLKOUT pin
     pub fn set_clockout(&mut self, freq: ClockoutFrequency) -> Result<(), I::Error> {
         let mut clkcout_ctl = self.interface.read_register(Registers::CLOCKOUT_CTL)?;
         clkcout_ctl &= !0b111;
@@ -92,6 +107,7 @@ where
         Ok(())
     }
 
+    /// Stop the clock
     pub fn set_stop(&mut self, stop: bool) -> Result<(), I::Error> {
         let mut control_1 = self.interface.read_register(Registers::CONTROL_1)?;
         if stop {
@@ -104,36 +120,50 @@ where
         Ok(())
     }
 
+    /// Clear the clock prescaler
     pub fn clear_prescaler(&mut self) -> Result<(), I::Error> {
         self.interface.write_register(Registers::SR_RESET, 0xA4)?;
 
         Ok(())
     }
-}
 
-pub enum ClockoutFrequency {
-    Hz32768,
-    Hz16384,
-    Hz8192,
-    Hz4096,
-    Hz2048,
-    Hz1024,
-    Hz1,
-    HighZ,
-}
+    /// Set power management options for backup battery
+    pub fn set_powermanagement(&mut self, mode: PowerManagement) -> Result<(), I::Error> {
+        let mut control3 = self.interface.read_register(Registers::CONTROL_3)?;
+        control3 &= !0b1110_0000;
+        control3 |= mode.to_regval() << 5;
+        self.interface
+            .write_register(Registers::CONTROL_3, control3)?;
 
-impl ClockoutFrequency {
-    fn to_regval(self) -> u8 {
-        match self {
-            ClockoutFrequency::Hz32768 => 0b000,
-            ClockoutFrequency::Hz16384 => 0b001,
-            ClockoutFrequency::Hz8192 => 0b010,
-            ClockoutFrequency::Hz4096 => 0b011,
-            ClockoutFrequency::Hz2048 => 0b100,
-            ClockoutFrequency::Hz1024 => 0b101,
-            ClockoutFrequency::Hz1 => 0b110,
-            ClockoutFrequency::HighZ => 0b111,
+        Ok(())
+    }
+
+    /// Disable the POR override
+    pub fn disable_por_override(&mut self) -> Result<(), I::Error> {
+        let mut control1 = self.interface.read_register(Registers::CONTROL_1)?;
+        control1 &= !(1 << 3);
+        self.interface
+            .write_register(Registers::CONTROL_1, control1)?;
+
+        Ok(())
+    }
+
+    /// Perform a OTP refresh
+    pub fn perform_otp_refresh(&mut self) -> Result<(), I::Error> {
+        let mut clockout = self.interface.read_register(Registers::CLOCKOUT_CTL)?;
+        clockout &= !(1 << 5);
+        self.interface
+            .write_register(Registers::CLOCKOUT_CTL, clockout)?;
+        clockout |= 1 << 5;
+        self.interface
+            .write_register(Registers::CLOCKOUT_CTL, clockout)?;
+
+        clockout = self.interface.read_register(Registers::CLOCKOUT_CTL)?;
+        while (clockout & (1 << 5)) == 0 {
+            clockout = self.interface.read_register(Registers::CLOCKOUT_CTL)?;
         }
+
+        Ok(())
     }
 }
 
@@ -208,29 +238,6 @@ impl AsBcd for u8 {
     fn as_bcd(self) -> Self {
         (self & 0xf) + (self >> 4) * 10
     }
-}
-
-struct Registers;
-
-#[allow(dead_code)]
-impl Registers {
-    pub const CONTROL_1: u8 = 0x00;
-    pub const CONTROL_2: u8 = 0x01;
-    pub const CONTROL_3: u8 = 0x02;
-    pub const CONTROL_4: u8 = 0x03;
-    pub const CONTROL_5: u8 = 0x04;
-    pub const SR_RESET: u8 = 0x05;
-    pub const SECONDS_100TH: u8 = 0x06;
-    pub const SECONDS: u8 = 0x07;
-    pub const MINUTES: u8 = 0x08;
-    pub const HOURS: u8 = 0x09;
-    pub const DAYS: u8 = 0x0A;
-    pub const WEEKDAYS: u8 = 0x0B;
-    pub const MONTHS: u8 = 0x0C;
-    pub const YEARS: u8 = 0x0D;
-
-    pub const CLOCKOUT_CTL: u8 = 0x13;
-    pub const AGING_OFFSET: u8 = 0x30;
 }
 
 #[cfg(test)]
