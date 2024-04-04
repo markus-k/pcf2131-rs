@@ -1,17 +1,26 @@
 #![no_std]
 
 use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
+use embedded_hal::i2c::I2c;
 pub use rtcc::DateTimeAccess;
 
 pub trait RegisterAccess {
     type Error;
 
-    fn write_register(&mut self, register: u8, value: u8) -> Result<(), Self::Error>;
+    fn write_register(&mut self, register: u8, value: u8) -> Result<(), Self::Error> {
+        self.write_registers(&[register, value])
+    }
 
     /// Write multiple registers. The first value on `reg_and_values` is the start register.
     fn write_registers(&mut self, reg_and_values: &[u8]) -> Result<(), Self::Error>;
 
-    fn read_register(&mut self, register: u8) -> Result<u8, Self::Error>;
+    fn read_register(&mut self, register: u8) -> Result<u8, Self::Error> {
+        let mut buf = [0u8];
+        self.read_registers(register, &mut buf)?;
+
+        Ok(buf[0])
+    }
+
     fn read_registers(&mut self, start: u8, buf: &mut [u8]) -> Result<(), Self::Error>;
 }
 
@@ -25,19 +34,6 @@ where
     I2C: embedded_hal::i2c::I2c,
 {
     type Error = I2C::Error;
-
-    fn write_register(&mut self, register: u8, value: u8) -> Result<(), Self::Error> {
-        self.i2c.write(self.address, &[register, value])?;
-
-        Ok(())
-    }
-
-    fn read_register(&mut self, register: u8) -> Result<u8, Self::Error> {
-        let mut buf = [0u8; 1];
-        self.i2c.write_read(self.address, &[register], &mut buf)?;
-
-        Ok(buf[0])
-    }
 
     fn write_registers(&mut self, reg_and_values: &[u8]) -> Result<(), Self::Error> {
         self.i2c.write(self.address, reg_and_values)?;
@@ -54,6 +50,28 @@ where
 
 pub struct Pcf2131<I> {
     interface: I,
+}
+
+impl<I2C> Pcf2131<I2CInterface<I2C>>
+where
+    I2C: I2c,
+{
+    pub fn new_i2c(i2c: I2C) -> Self {
+        Self::new_i2c_addr(i2c, 0x53)
+    }
+
+    pub fn new_i2c_addr(mut i2c: I2C, address: u8) -> Self {
+        // do a dummy write to the address and ignore the result.
+        // This is done since the i2c interface of the pcf2131 may
+        // be in some weird state if Vdd was lost during a transaction
+        // but the device was still backed by a battery (see 7.16.3)
+        i2c.write(address, &[]).ok();
+        i2c.write(address, &[]).ok();
+
+        Self {
+            interface: I2CInterface { i2c, address },
+        }
+    }
 }
 
 impl<I> Pcf2131<I>
@@ -170,7 +188,7 @@ where
         self.interface.write_registers(&buffer)?;
         self.set_stop(false)?;
 
-        todo!()
+        Ok(())
     }
 }
 
@@ -216,8 +234,6 @@ impl Registers {
 }
 
 mod tests {
-    use super::*;
-
     #[test]
     fn test_bcd() {
         assert_eq!(9u8.to_bcd(), 0x9);
