@@ -1,5 +1,7 @@
 # PCF2131 driver
 
+Status: This project has been abandoned since the PCF2131 is unreliable and seems to crash internally periodically when operated with a battery backup.
+
 Rust driver for [PCF2131](https://www.nxp.com/docs/en/data-sheet/PCF2131.pdf) "nano-power highly accurate RTC with integrated quartz crystal".
 
 ## License
